@@ -1,172 +1,200 @@
-let handPose;
 let video;
+let handPose;
 let hands = [];
-let vw, vh; // 攝影機顯示的寬高
-let isModelStarted = false;
-let gameState = "等待手勢"; // 狀態: "等待手勢", "1", "3"
+
+let playerChoice = "";
+let aiChoice = "";
+let result = "";
+
 let winCount = 0;
-let lossCount = 0;
-let gameResult = ""; // 顯示 "你贏了", "你輸了" 或 "平手"
-let lastPlayTime = 0; // 用於控制出拳冷卻時間
-let playCooldown = 1500; // 1.5秒冷卻，防止連續判定
-let compHand = ""; // 電腦出的拳
+let loseCount = 0;
+
+let gameActive = true;
+
 function preload() {
-  // 載入 handPose 模型
   handPose = ml5.handPose();
 }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  
-  // 設定攝影機
+
   video = createCapture(VIDEO);
   video.size(640, 480);
   video.hide();
 
-  // 計算顯示尺寸 (全螢幕的 60%)
-  vw = width * 0.6;
-  vh = height * 0.6;
+  handPose.detectStart(video, gotHands);
 
   textAlign(CENTER, CENTER);
-}
-
-function draw() {
-  background('#e7c6ff');
-
-  // 計算攝影機置中的位置
-  let x = (width - vw) / 2;
-  let y = (height - vh) / 2;
-
-  // 確認攝影機已載入且模型尚未開始偵測
-  if (video.width > 0 && !isModelStarted) {
-    handPose.detectStart(video, gotHands);
-    isModelStarted = true;
-  }
-
-  // 1. 繪製攝影機影像 (修正鏡像問題)
-  push();
-  translate(x + vw, y); // 移動到顯示區域右側
-  scale(-1, 1);        // 水平翻轉
-  image(video, 0, 0, vw, vh);
-  pop();
-
-  // 3. 繪製手勢骨架
-  if (hands.length > 0) {
-    drawSkeleton(x, y);
-  }
-
-  // 4. 顯示遊戲狀態
-  fill(0);
-  textSize(32);
-  text("狀態: " + gameState, width / 2, 50);
-  textSize(20);
-  text("比 1: 繼續遊戲 | 比 3: 結束遊戲", width / 2, height - 30);
-
-  // 5. 顯示右上角計分板
-  fill(0);
-  textAlign(RIGHT, TOP);
-  textSize(24);
-  text(`贏: ${winCount} | 輸: ${lossCount}`, width - 20, 20);
-  
-  // 6. 顯示猜拳結果
-  if (gameResult !== "") {
-    textAlign(CENTER, CENTER);
-    fill(255, 0, 0);
-    textSize(48);
-    text(gameResult, width / 2, height / 2 + vh / 2 + 40);
-    textSize(24);
-    text(`電腦出: ${compHand}`, width / 2, height / 2 + vh / 2 + 80);
-  }
 }
 
 function gotHands(results) {
   hands = results;
 }
 
-function drawSkeleton(offX, offY) {
-  stroke(0, 255, 0);
-  strokeWeight(3);
+function draw() {
+  background("#e7c6ff");
 
-  for (let i = 0; i < hands.length; i++) {
-    let hand = hands[i];
-    let fingersUp = countFingers(hand);
+  // 攝影機畫面大小
+  let camW = width * 0.6;
+  let camH = height * 0.6;
 
-    // 根據手指數判斷狀態： 1 -> 繼續, 3 -> 結束
-    if (fingersUp === 1) {
-      gameState = "1";
-      gameResult = ""; // 清除結果畫面準備下一局
-    } else if (fingersUp === 3) {
-      gameState = "3";
-      gameResult = "遊戲已結束";
-    }
+  let camX = width / 2 - camW / 2;
+  let camY = height / 2 - camH / 2;
 
-    // 猜拳邏輯: 只有在狀態 1 (繼續) 且不在冷卻時間時觸發
-    if (gameState === "1" && (millis() - lastPlayTime > playCooldown)) {
-      if (fingersUp === 0 || fingersUp === 2 || fingersUp === 5) {
-        judgeRPS(fingersUp);
-        lastPlayTime = millis();
-      }
-    }
+  // 修正鏡像問題
+  push();
+  translate(camX + camW, camY);
+  scale(-1, 1);
 
-    // 定義骨架連接點段落
-    let fingerLines = [
-      [0, 1, 2, 3, 4],    // 大拇指
-      [5, 6, 7, 8],       // 食指
-      [9, 10, 11, 12],    // 中指
-      [13, 14, 15, 16],   // 無名指
-      [17, 18, 19, 20]    // 小拇指
-    ];
+  image(video, 0, 0, camW, camH);
 
-    fingerLines.forEach(points => {
-      for (let j = 0; j < points.length - 1; j++) {
-        let p1 = hand.keypoints[points[j]];
-        let p2 = hand.keypoints[points[j+1]];
-        let x1 = map(p1.x, 0, video.width, offX + vw, offX);
-        let y1 = map(p1.y, 0, video.height, offY, offY + vh);
-        let x2 = map(p2.x, 0, video.width, offX + vw, offX);
-        let y2 = map(p2.y, 0, video.height, offY, offY + vh);
-        line(x1, y1, x2, y2);
-      }
-    });
+  drawHandSkeleton(camW, camH);
+
+  pop();
+
+  // 上方學號姓名
+  fill(0);
+  textSize(24);
+  text("414730266 留妍瑜", width / 2, 40);
+
+  // 右上角分數
+  textAlign(RIGHT);
+  textSize(24);
+  text("贏：" + winCount + "  輸：" + loseCount, width - 30, 40);
+
+  // 中下方顯示結果
+  textAlign(CENTER);
+
+  textSize(32);
+  fill(50);
+
+  text("玩家：" + playerChoice, width / 2, height - 140);
+  text("AI：" + aiChoice, width / 2, height - 100);
+  text(result, width / 2, height - 60);
+
+  if (!gameActive) {
+    fill(255, 0, 0);
+    textSize(50);
+    text("遊戲結束", width / 2, height / 2);
   }
 }
 
-function countFingers(hand) {
-  let count = 0;
-  let tips = [8, 12, 16, 20]; // 食指、中指、無名指、小指
-  let joints = [6, 10, 14, 18];
-  for (let k = 0; k < tips.length; k++) {
-    if (hand.keypoints[tips[k]].y < hand.keypoints[joints[k]].y) count++;
+function drawHandSkeleton(camW, camH) {
+
+  for (let hand of hands) {
+
+    let keypoints = hand.keypoints;
+
+    stroke(0);
+    strokeWeight(4);
+
+    // 每根手指連線
+    drawFinger(keypoints, 0, 4, camW, camH);
+    drawFinger(keypoints, 5, 8, camW, camH);
+    drawFinger(keypoints, 9, 12, camW, camH);
+    drawFinger(keypoints, 13, 16, camW, camH);
+    drawFinger(keypoints, 17, 20, camW, camH);
+
+    // 判斷手勢
+    let fingerCount = countFingers(keypoints);
+
+    if (fingerCount == 1) {
+      gameActive = true;
+    }
+
+    if (fingerCount == 3) {
+      gameActive = false;
+    }
+
+    if (gameActive) {
+
+      if (fingerCount == 0) {
+        playerChoice = "石頭";
+      }
+      else if (fingerCount == 2) {
+        playerChoice = "剪刀";
+      }
+      else if (fingerCount == 5) {
+        playerChoice = "布";
+      }
+      else {
+        return;
+      }
+
+      aiChoice = random(["石頭", "剪刀", "布"]);
+
+      judgeGame();
+    }
   }
-  // 大拇指判斷 (考慮左右手水平距離)
-  if (abs(hand.keypoints[4].x - hand.keypoints[2].x) > 40) count++;
+}
+
+function drawFinger(keypoints, start, end, camW, camH) {
+
+  for (let i = start; i < end; i++) {
+
+    let x1 = map(keypoints[i].x, 0, video.width, 0, camW);
+    let y1 = map(keypoints[i].y, 0, video.height, 0, camH);
+
+    let x2 = map(keypoints[i + 1].x, 0, video.width, 0, camW);
+    let y2 = map(keypoints[i + 1].y, 0, video.height, 0, camH);
+
+    line(x1, y1, x2, y2);
+  }
+}
+
+function countFingers(keypoints) {
+
+  let count = 0;
+
+  // 拇指
+  if (keypoints[4].x < keypoints[3].x) {
+    count++;
+  }
+
+  // 食指
+  if (keypoints[8].y < keypoints[6].y) {
+    count++;
+  }
+
+  // 中指
+  if (keypoints[12].y < keypoints[10].y) {
+    count++;
+  }
+
+  // 無名指
+  if (keypoints[16].y < keypoints[14].y) {
+    count++;
+  }
+
+  // 小指
+  if (keypoints[20].y < keypoints[18].y) {
+    count++;
+  }
+
   return count;
 }
 
-function judgeRPS(userFingers) {
-  let choices = [0, 2, 5]; // 石頭, 剪刀, 布
-  let names = {0: "石頭", 2: "剪刀", 5: "布"};
-  let computerIdx = floor(random(3));
-  let computerMove = choices[computerIdx];
-  compHand = names[computerMove];
+function judgeGame() {
 
-  if (userFingers === computerMove) {
-    gameResult = "平手！";
-  } else if (
-    (userFingers === 0 && computerMove === 2) || // 石頭贏剪刀
-    (userFingers === 2 && computerMove === 5) || // 剪刀贏布
-    (userFingers === 5 && computerMove === 0)    // 布贏石頭
+  if (playerChoice == aiChoice) {
+    result = "平手";
+    return;
+  }
+
+  if (
+    (playerChoice == "石頭" && aiChoice == "剪刀") ||
+    (playerChoice == "剪刀" && aiChoice == "布") ||
+    (playerChoice == "布" && aiChoice == "石頭")
   ) {
-    gameResult = "你贏了！";
+    result = "你贏了！";
     winCount++;
-  } else {
-    gameResult = "你輸了！";
-    lossCount++;
+  }
+  else {
+    result = "你輸了！";
+    loseCount++;
   }
 }
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  vw = width * 0.6;
-  vh = height * 0.6;
 }
