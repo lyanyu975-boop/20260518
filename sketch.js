@@ -3,6 +3,7 @@ let video;
 let hands = [];
 let pg; // 用於處理像素特效的圖層
 let vw, vh; // 攝影機顯示的寬高
+let isModelStarted = false;
 let gameState = "準備中";
 
 function preload() {
@@ -25,9 +26,6 @@ function setup() {
   // 建立與視訊畫面同尺寸的 Graphics
   pg = createGraphics(vw, vh);
 
-  // 開始偵測手勢
-  handPose.detectStart(video, gotHands);
-  
   textAlign(CENTER, CENTER);
 }
 
@@ -38,6 +36,12 @@ function draw() {
   let x = (width - vw) / 2;
   let y = (height - vh) / 2;
 
+  // 確認攝影機已載入且模型尚未開始偵測
+  if (video.width > 0 && !isModelStarted) {
+    handPose.detectStart(video, gotHands);
+    isModelStarted = true;
+  }
+
   // 1. 繪製攝影機影像 (修正鏡像問題)
   push();
   translate(x + vw, y); // 移動到顯示區域右側
@@ -46,11 +50,15 @@ function draw() {
   pop();
 
   // 2. 更新與繪製 Graphics (像素數值層)
-  drawPixelEffect();
-  image(pg, x, y); // 將處理後的圖層疊在視訊上方
+  if (isModelStarted) {
+    drawPixelEffect();
+    image(pg, x, y); // 將處理後的圖層疊在視訊上方
+  }
 
   // 3. 繪製手勢骨架
-  drawSkeleton(x, y);
+  if (hands.length > 0) {
+    drawSkeleton(x, y);
+  }
 
   // 4. 顯示遊戲狀態
   fill(0);
@@ -118,9 +126,9 @@ function drawSkeleton(offX, offY) {
         let p2 = hand.keypoints[points[j+1]];
 
         // 座標轉換：需考量比例與鏡像
-        let x1 = map(video.width - p1.x, 0, video.width, offX, offX + vw);
+        let x1 = map(p1.x, 0, video.width, offX + vw, offX); // 修正鏡像映射
         let y1 = map(p1.y, 0, video.height, offY, offY + vh);
-        let x2 = map(video.width - p2.x, 0, video.width, offX, offX + vw);
+        let x2 = map(p2.x, 0, video.width, offX + vw, offX); // 修正鏡像映射
         let y2 = map(p2.y, 0, video.height, offY, offY + vh);
 
         line(x1, y1, x2, y2);
@@ -146,4 +154,3 @@ function windowResized() {
   vh = height * 0.6;
   pg = createGraphics(vw, vh);
 }
-
