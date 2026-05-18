@@ -12,7 +12,9 @@ let loseCount = 0;
 let countdown = 3;
 let lastSecond = 0;
 
-let state = "countdown";
+let gameState = "countdown";
+
+let gameOver = false;
 
 function setup() {
 
@@ -41,7 +43,7 @@ function setup() {
 
 function modelReady() {
 
-  console.log("Handpose ready");
+  console.log("Handpose Ready");
 
 }
 
@@ -55,20 +57,53 @@ function draw() {
 
   drawTexts();
 
-  gameLogic();
+  checkControlGesture();
+
+  if (!gameOver) {
+
+    gameLogic();
+  }
+
+  else {
+
+    fill(0, 180);
+
+    rect(0, 0, width, height);
+
+    fill(255);
+
+    textSize(80);
+
+    text(
+      "GAME OVER",
+      width / 2,
+      height / 2
+    );
+  }
 }
 
 function drawGameUI() {
 
+  // 外框
   fill("#5a189a");
 
   noStroke();
 
   rect(40, 40, width - 80, height - 80, 40);
 
+  // 內框
   fill("#e0aaff");
 
   rect(80, 80, width - 160, height - 160, 30);
+
+  // 按鈕
+  fill("#240046");
+
+  circle(width - 120, height - 100, 50);
+
+  fill("#9d4edd");
+
+  circle(width - 190, height - 100, 50);
 }
 
 function drawCamera() {
@@ -101,7 +136,7 @@ function drawHand(camW, camH) {
 
     let landmarks = predictions[0].landmarks;
 
-    // 畫點
+    // 骨架點
     for (let i = 0; i < landmarks.length; i++) {
 
       let x = map(
@@ -129,9 +164,13 @@ function drawHand(camW, camH) {
 
     // 手指骨架
     drawFinger(landmarks, [0,1,2,3,4], camW, camH);
+
     drawFinger(landmarks, [5,6,7,8], camW, camH);
+
     drawFinger(landmarks, [9,10,11,12], camW, camH);
+
     drawFinger(landmarks, [13,14,15,16], camW, camH);
+
     drawFinger(landmarks, [17,18,19,20], camW, camH);
   }
 }
@@ -148,13 +187,37 @@ function drawFinger(landmarks, points, camW, camH) {
 
     let p2 = landmarks[points[i + 1]];
 
-    let x1 = map(p1[0], 0, video.width, 0, camW);
+    let x1 = map(
+      p1[0],
+      0,
+      video.width,
+      0,
+      camW
+    );
 
-    let y1 = map(p1[1], 0, video.height, 0, camH);
+    let y1 = map(
+      p1[1],
+      0,
+      video.height,
+      0,
+      camH
+    );
 
-    let x2 = map(p2[0], 0, video.width, 0, camW);
+    let x2 = map(
+      p2[0],
+      0,
+      video.width,
+      0,
+      camW
+    );
 
-    let y2 = map(p2[1], 0, video.height, 0, camH);
+    let y2 = map(
+      p2[1],
+      0,
+      video.height,
+      0,
+      camH
+    );
 
     line(x1, y1, x2, y2);
   }
@@ -185,14 +248,17 @@ function drawTexts() {
 
   textSize(60);
 
-  if (state == "countdown") {
+  if (!gameOver) {
 
-    text(countdown, width / 2, 120);
-  }
+    if (gameState == "countdown") {
 
-  else {
+      text(countdown, width / 2, 120);
+    }
 
-    text("GO!", width / 2, 120);
+    else {
+
+      text("GO!", width / 2, 120);
+    }
   }
 
   textSize(28);
@@ -208,7 +274,7 @@ function drawTexts() {
 
 function gameLogic() {
 
-  if (state == "countdown") {
+  if (gameState == "countdown") {
 
     if (millis() - lastSecond > 1000) {
 
@@ -221,10 +287,37 @@ function gameLogic() {
 
       judgeGame();
 
-      state = "result";
+      gameState = "result";
 
       setTimeout(resetGame, 2500);
     }
+  }
+}
+
+function checkControlGesture() {
+
+  if (predictions.length == 0) return;
+
+  let landmarks = predictions[0].landmarks;
+
+  let fingerCount = countFingers(landmarks);
+
+  // ☝️ 1 = 繼續
+  if (fingerCount == 1) {
+
+    gameOver = false;
+
+    gameState = "countdown";
+
+    countdown = 3;
+
+    resultText = "";
+  }
+
+  // 🤟 3 = 結束
+  if (fingerCount == 3) {
+
+    gameOver = true;
   }
 }
 
@@ -269,7 +362,7 @@ function judgeGame() {
 
   aiChoice = random(choices);
 
-  // 勝負
+  // 判定
   if (playerChoice == aiChoice) {
 
     resultText = "平手";
@@ -317,7 +410,7 @@ function resetGame() {
 
   lastSecond = millis();
 
-  state = "countdown";
+  gameState = "countdown";
 }
 
 function windowResized() {
